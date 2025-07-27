@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React, { useRef, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 
@@ -26,6 +26,7 @@ contract SimpleStorage {
 
 const CodeEditor: React.FC = () => {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor) => {
     editorRef.current = editor
@@ -43,8 +44,26 @@ const CodeEditor: React.FC = () => {
     })
   }
 
+  // Handle editor resize when container changes
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (editorRef.current) {
+        editorRef.current.layout()
+      }
+    })
+
+    resizeObserver.observe(container)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
+
   return (
-    <div className="h-full w-full relative">
+    <div ref={containerRef} className="h-full w-full relative">
       <Editor
         height="100%"
         defaultLanguage="solidity"

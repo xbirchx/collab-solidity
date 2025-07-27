@@ -62,23 +62,18 @@ function App() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Editor Area */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative min-w-0">
           <CodeEditor />
         </div>
 
         {/* Side Panels */}
         {activePanel && (
-          <div className="w-80 bg-vscode-sidebar border-l border-vscode-border flex flex-col">
+          <div className="w-80 bg-vscode-sidebar border-l border-vscode-border flex flex-col flex-shrink-0">
             {activePanel === 'chat' && <ChatPanel />}
             {activePanel === 'users' && <UserList />}
             {activePanel === 'share' && <SharePanel />}
           </div>
         )}
-      </div>
-
-      {/* Connection Status */}
-      <div className="absolute bottom-4 right-4 bg-vscode-success text-white px-4 py-2 rounded shadow-lg">
-        Ready to code!
       </div>
     </div>
   )
