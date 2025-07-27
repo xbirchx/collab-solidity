@@ -1,7 +1,6 @@
 import React, { useRef, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
-import * as monaco from 'monaco-editor'
 import { useSession } from '../contexts/SessionContext'
 
 const defaultSolidityCode = `// SPDX-License-Identifier: MIT

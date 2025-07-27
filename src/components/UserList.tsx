@@ -1,5 +1,5 @@
 import React from 'react'
-import { Users, Circle, Crown, Edit, Eye, Settings } from 'lucide-react'
+import { Users, Circle, Crown, Edit, Eye } from 'lucide-react'
 import { useSession } from '../contexts/SessionContext'
 
 const UserList: React.FC = () => {
