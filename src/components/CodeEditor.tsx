@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
+import * as monaco from 'monaco-editor'
 
 const defaultSolidityCode = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
@@ -230,6 +231,125 @@ const CodeEditor: React.FC = () => {
 
   const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor, monaco: any) => {
     editorRef.current = editor
+    
+    // Register Solidity language
+    monaco.languages.register({ id: 'solidity' })
+    
+    // Configure Solidity language
+    monaco.languages.setLanguageConfiguration('solidity', {
+      comments: {
+        lineComment: '//',
+        blockComment: ['/*', '*/']
+      },
+      brackets: [
+        ['{', '}'],
+        ['[', ']'],
+        ['(', ')']
+      ],
+      autoClosingPairs: [
+        { open: '{', close: '}' },
+        { open: '[', close: ']' },
+        { open: '(', close: ')' },
+        { open: '"', close: '"' },
+        { open: "'", close: "'" }
+      ],
+      surroundingPairs: [
+        { open: '{', close: '}' },
+        { open: '[', close: ']' },
+        { open: '(', close: ')' },
+        { open: '"', close: '"' },
+        { open: "'", close: "'" }
+      ]
+    })
+    
+    // Define Solidity tokenizer
+    monaco.languages.setMonarchTokensProvider('solidity', {
+      keywords: [
+        'pragma', 'solidity', 'contract', 'interface', 'library', 'is', 'import', 'using',
+        'function', 'modifier', 'event', 'struct', 'enum', 'mapping', 'address', 'bool',
+        'string', 'bytes', 'uint', 'int', 'uint8', 'uint16', 'uint32', 'uint64', 'uint128', 'uint256',
+        'int8', 'int16', 'int32', 'int64', 'int128', 'int256', 'bytes1', 'bytes2', 'bytes3', 'bytes4',
+        'bytes5', 'bytes6', 'bytes7', 'bytes8', 'bytes9', 'bytes10', 'bytes11', 'bytes12',
+        'bytes13', 'bytes14', 'bytes15', 'bytes16', 'bytes17', 'bytes18', 'bytes19', 'bytes20',
+        'bytes21', 'bytes22', 'bytes23', 'bytes24', 'bytes25', 'bytes26', 'bytes27', 'bytes28',
+        'bytes29', 'bytes30', 'bytes31', 'bytes32',
+        'public', 'private', 'internal', 'external', 'view', 'pure', 'payable', 'constant',
+        'immutable', 'override', 'virtual', 'abstract', 'indexed', 'anonymous',
+        'if', 'else', 'for', 'while', 'do', 'break', 'continue', 'return', 'throw', 'revert',
+        'require', 'assert', 'new', 'delete', 'this', 'super', 'selfdestruct', 'suicide',
+        'var', 'true', 'false', 'null', 'now', 'block', 'msg', 'tx', 'gasleft', 'gas',
+        'wei', 'szabo', 'finney', 'ether', 'seconds', 'minutes', 'hours', 'days', 'weeks', 'years'
+      ],
+      
+      operators: [
+        '=', '>', '<', '!', '~', '?', ':', '==', '<=', '>=', '!=',
+        '&&', '||', '++', '--', '+', '-', '*', '/', '&', '|', '^', '%',
+        '<<', '>>', '>>>', '+=', '-=', '*=', '/=', '&=', '|=', '^=',
+        '%=', '<<=', '>>=', '>>>='
+      ],
+      
+      symbols: /[=><!~?:&|+\-*\/\^%]+/,
+      
+      tokenizer: {
+        root: [
+          [/[a-z_$][\w$]*/, {
+            cases: {
+              '@keywords': 'keyword',
+              '@default': 'identifier'
+            }
+          }],
+          [/[A-Z][\w\$]*/, 'type.identifier'],
+          { include: '@whitespace' },
+          [/[{}()\[\]]/, '@brackets'],
+          [/[<>](?!@symbols)/, '@brackets'],
+          [/@symbols/, {
+            cases: {
+              '@operators': 'operator',
+              '@default': ''
+            }
+          }],
+          [/\d*\.\d+([eE][\-+]?\d+)?/, 'number.float'],
+          [/0[xX][0-9a-fA-F]+/, 'number.hex'],
+          [/\d+/, 'number'],
+          [/[;,.]/, 'delimiter'],
+          [/"([^"\\]|\\.)*$/, 'string.invalid'],
+          [/"/, { token: 'string.quote', bracket: '@open', next: '@string' }],
+          [/'([^'\\]|\\.)*$/, 'string.invalid'],
+          [/'/, { token: 'string.quote', bracket: '@open', next: '@string_single' }],
+          [/`/, { token: 'string.quote', bracket: '@open', next: '@string_backtick' }]
+        ],
+        
+        whitespace: [
+          [/[ \t\r\n]+/, 'white'],
+          [/\/\*/, 'comment', '@comment'],
+          [/\/\/.*$/, 'comment']
+        ],
+        
+        comment: [
+          [/[^\/*]+/, 'comment'],
+          [/\*\//, 'comment', '@pop'],
+          [/[\/*]/, 'comment']
+        ],
+        
+        string: [
+          [/[^\\"]+/, 'string'],
+          [/\\./, 'string.escape'],
+          [/"/, { token: 'string.quote', bracket: '@close', next: '@pop' }]
+        ],
+        
+        string_single: [
+          [/[^\\']+/, 'string'],
+          [/\\./, 'string.escape'],
+          [/'/, { token: 'string.quote', bracket: '@close', next: '@pop' }]
+        ],
+        
+        string_backtick: [
+          [/[^\\`]+/, 'string'],
+          [/\\./, 'string.escape'],
+          [/`/, { token: 'string.quote', bracket: '@close', next: '@pop' }]
+        ]
+      }
+    })
     
     // Define Cursor-like theme for Solidity
     monaco.editor.defineTheme('cursor-dark', {
