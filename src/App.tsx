@@ -4,15 +4,11 @@ import ChatPanel from './components/ChatPanel'
 import UserList from './components/UserList'
 import SharePanel from './components/SharePanel'
 import { MessageSquare, Users, Share2, Code2 } from 'lucide-react'
+import { useSession } from './contexts/SessionContext'
 
 function App() {
   const [activePanel, setActivePanel] = useState<'chat' | 'users' | 'share' | null>(null)
-
-  // Simulate connected users for now
-  const connectedUsers = [
-    { userId: 'user1', isYou: true, nickname: 'You' },
-    { userId: 'user2', isYou: false, nickname: 'User-abc123' }
-  ]
+  const { sessionState } = useSession()
 
   return (
     <div className="h-screen w-screen bg-vscode-bg text-vscode-text flex flex-col">
@@ -33,7 +29,7 @@ function App() {
           >
             <Users className="w-5 h-5" />
             <span className="ml-1 text-xs bg-vscode-accent text-white px-1.5 py-0.5 rounded-full">
-              {connectedUsers.length}
+              {sessionState.users.length}
             </span>
           </button>
           

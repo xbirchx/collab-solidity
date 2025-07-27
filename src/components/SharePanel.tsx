@@ -1,10 +1,12 @@
 import React, { useState } from 'react'
 import { Share2, Copy, QrCode } from 'lucide-react'
 import QRCode from 'qrcode.react'
+import { useSession } from '../contexts/SessionContext'
 
 const SharePanel: React.FC = () => {
   const [copied, setCopied] = useState(false)
-  const sessionUrl = window.location.href
+  const { sessionState } = useSession()
+  const sessionUrl = `${window.location.origin}${window.location.pathname}?session=${sessionState.sessionId}`
 
   const handleCopyLink = async () => {
     try {
@@ -104,6 +106,12 @@ const SharePanel: React.FC = () => {
               </span>
               <span>They'll automatically join the collaborative session</span>
             </div>
+            <div className="flex items-start space-x-2">
+              <span className="w-5 h-5 bg-vscode-accent text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">
+                4
+              </span>
+              <span>Admin can grant edit permissions in the Users panel</span>
+            </div>
           </div>
         </div>
 
@@ -112,15 +120,19 @@ const SharePanel: React.FC = () => {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-vscode-text-secondary">Session ID:</span>
-              <span className="text-vscode-text font-mono">solidity-editor-session</span>
+              <span className="text-vscode-text font-mono">{sessionState.sessionId}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-vscode-text-secondary">Status:</span>
               <span className="text-vscode-success">Active</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-vscode-text-secondary">Expires:</span>
-              <span className="text-vscode-text">Never</span>
+              <span className="text-vscode-text-secondary">Connected Users:</span>
+              <span className="text-vscode-text">{sessionState.users.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-vscode-text-secondary">Editors:</span>
+              <span className="text-vscode-text">{sessionState.editors.length}</span>
             </div>
           </div>
         </div>
