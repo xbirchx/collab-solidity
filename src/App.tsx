@@ -3,12 +3,35 @@ import CodeEditor from './components/CodeEditor'
 import ChatPanel from './components/ChatPanel'
 import UserList from './components/UserList'
 import SharePanel from './components/SharePanel'
-import { MessageSquare, Users, Share2, Code2 } from 'lucide-react'
+import LoadingSpinner from './components/LoadingSpinner'
+import { MessageSquare, Users, Share2, Code2, AlertCircle } from 'lucide-react'
 import { useSession } from './contexts/SessionContext'
 
 function App() {
   const [activePanel, setActivePanel] = useState<'chat' | 'users' | 'share' | null>(null)
-  const { sessionState } = useSession()
+  const { sessionState, isLoading, error } = useSession()
+
+  if (isLoading) {
+    return <LoadingSpinner />
+  }
+
+  if (error) {
+    return (
+      <div className="h-screen w-screen bg-vscode-bg flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <AlertCircle className="w-12 h-12 text-vscode-error mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-vscode-text mb-2">Connection Error</h2>
+          <p className="text-vscode-text-secondary mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-vscode-accent hover:bg-vscode-accent-hover text-white px-4 py-2 rounded transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="h-screen w-screen bg-vscode-bg text-vscode-text flex flex-col">

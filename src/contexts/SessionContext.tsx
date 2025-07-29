@@ -1,41 +1,22 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-
-interface User {
-  userId: string
-  nickname: string
-  isAdmin: boolean
-  canEdit: boolean
-  isOnline: boolean
-}
-
-interface SessionState {
-  sessionId: string
-  adminUserId: string | null
-  editors: string[]
-  users: User[]
-}
+import { apiService, SessionState } from '../services/api'
 
 interface SessionContextType {
   sessionState: SessionState
   currentUserId: string
   isAdmin: boolean
   canEdit: boolean
+  isLoading: boolean
+  error: string | null
   addUser: (userId: string, nickname: string) => void
   removeUser: (userId: string) => void
   grantEditPermission: (userId: string) => void
   revokeEditPermission: (userId: string) => void
   transferAdmin: (newAdminUserId: string) => void
+  updateUserNickname: (nickname: string) => void
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined)
-
-const generateSessionId = () => {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
-}
-
-const generateUserId = () => {
-  return 'user_' + Math.random().toString(36).substring(2, 9)
-}
 
 const getSessionIdFromUrl = () => {
   const urlParams = new URLSearchParams(window.location.search)
@@ -48,19 +29,6 @@ const setSessionIdInUrl = (sessionId: string) => {
   window.history.replaceState({}, '', url.toString())
 }
 
-const getStoredSession = (sessionId: string): SessionState | null => {
-  try {
-    const stored = localStorage.getItem(`session_${sessionId}`)
-    return stored ? JSON.parse(stored) : null
-  } catch {
-    return null
-  }
-}
-
-const storeSession = (sessionState: SessionState) => {
-  localStorage.setItem(`session_${sessionState.sessionId}`, JSON.stringify(sessionState))
-}
-
 export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [sessionState, setSessionState] = useState<SessionState>({
     sessionId: '',
@@ -69,90 +37,68 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     users: []
   })
   const [currentUserId, setCurrentUserId] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   // Initialize session on mount
   useEffect(() => {
-    let sessionId = getSessionIdFromUrl()
-    let storedSession: SessionState | null = null
-
-    if (sessionId) {
-      storedSession = getStoredSession(sessionId)
-    }
-
-    if (!sessionId || !storedSession) {
-      // Create new session
-      sessionId = generateSessionId()
-      setSessionIdInUrl(sessionId)
-      
-      const newUserId = generateUserId()
-      setCurrentUserId(newUserId)
-      
-      const newSession: SessionState = {
-        sessionId,
-        adminUserId: newUserId,
-        editors: [newUserId],
-        users: [{
-          userId: newUserId,
-          nickname: 'You',
-          isAdmin: true,
-          canEdit: true,
-          isOnline: true
-        }]
-      }
-      
-      setSessionState(newSession)
-      storeSession(newSession)
-    } else {
-      // Join existing session
-      const newUserId = generateUserId()
-      setCurrentUserId(newUserId)
-      
-      const updatedSession = {
-        ...storedSession,
-        users: [
-          ...storedSession.users,
-          {
-            userId: newUserId,
-            nickname: `User-${newUserId.slice(-6)}`,
-            isAdmin: false,
-            canEdit: false,
-            isOnline: true
+    const initializeSession = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
+        
+        let sessionId = getSessionIdFromUrl()
+        
+        if (sessionId) {
+          // Try to join existing session
+          try {
+            const result = await apiService.joinSession(sessionId)
+            setSessionState(result.session)
+            setCurrentUserId(result.currentUserId)
+            setSessionIdInUrl(sessionId)
+          } catch (err) {
+            console.error('Failed to join session:', err)
+            // Session doesn't exist, create new one
+            sessionId = null
           }
-        ]
+        }
+        
+        if (!sessionId) {
+          // Create new session
+          const result = await apiService.createSession()
+          setSessionState(result.session)
+          setCurrentUserId(result.currentUserId)
+          setSessionIdInUrl(result.session.sessionId)
+        }
+      } catch (err) {
+        console.error('Failed to initialize session:', err)
+        setError(err instanceof Error ? err.message : 'Failed to initialize session')
+      } finally {
+        setIsLoading(false)
       }
-      
-      setSessionState(updatedSession)
-      storeSession(updatedSession)
     }
+
+    initializeSession()
   }, [])
 
-  // Listen for storage changes (cross-tab sync)
+  // Poll for session updates
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === `session_${sessionState.sessionId}` && e.newValue) {
-        try {
-          const updatedSession = JSON.parse(e.newValue)
-          setSessionState(updatedSession)
-        } catch {
-          // Ignore invalid JSON
-        }
-      }
-    }
+    if (!sessionState.sessionId) return
 
-    window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
+    const pollInterval = setInterval(async () => {
+      try {
+        const updatedSession = await apiService.getSession(sessionState.sessionId)
+        setSessionState(updatedSession)
+      } catch (err) {
+        console.error('Failed to poll session:', err)
+      }
+    }, 2000) // Poll every 2 seconds
+
+    return () => clearInterval(pollInterval)
   }, [sessionState.sessionId])
 
-  const updateSession = (updater: (prev: SessionState) => SessionState) => {
-    setSessionState(prev => {
-      const updated = updater(prev)
-      storeSession(updated)
-      return updated
-    })
-  }
-
   const addUser = (userId: string, nickname: string) => {
-    updateSession(prev => ({
+    setSessionState(prev => ({
       ...prev,
       users: [...prev.users, {
         userId,
@@ -164,42 +110,69 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
     }))
   }
 
-  const removeUser = (userId: string) => {
-    updateSession(prev => ({
-      ...prev,
-      users: prev.users.filter(user => user.userId !== userId)
-    }))
+  const removeUser = async (userId: string) => {
+    try {
+      const updatedSession = await apiService.removeUser(sessionState.sessionId, userId)
+      setSessionState(updatedSession)
+    } catch (err) {
+      console.error('Failed to remove user:', err)
+      setError(err instanceof Error ? err.message : 'Failed to remove user')
+    }
   }
 
-  const grantEditPermission = (userId: string) => {
-    updateSession(prev => ({
-      ...prev,
-      editors: [...prev.editors, userId],
-      users: prev.users.map(user => 
-        user.userId === userId ? { ...user, canEdit: true } : user
+  const grantEditPermission = async (userId: string) => {
+    try {
+      const updatedSession = await apiService.updatePermissions(
+        sessionState.sessionId,
+        'grant_edit',
+        userId,
+        sessionState.adminUserId!
       )
-    }))
+      setSessionState(updatedSession)
+    } catch (err) {
+      console.error('Failed to grant edit permission:', err)
+      setError(err instanceof Error ? err.message : 'Failed to grant edit permission')
+    }
   }
 
-  const revokeEditPermission = (userId: string) => {
-    updateSession(prev => ({
-      ...prev,
-      editors: prev.editors.filter(id => id !== userId),
-      users: prev.users.map(user => 
-        user.userId === userId ? { ...user, canEdit: false } : user
+  const revokeEditPermission = async (userId: string) => {
+    try {
+      const updatedSession = await apiService.updatePermissions(
+        sessionState.sessionId,
+        'revoke_edit',
+        userId,
+        sessionState.adminUserId!
       )
-    }))
+      setSessionState(updatedSession)
+    } catch (err) {
+      console.error('Failed to revoke edit permission:', err)
+      setError(err instanceof Error ? err.message : 'Failed to revoke edit permission')
+    }
   }
 
-  const transferAdmin = (newAdminUserId: string) => {
-    updateSession(prev => ({
-      ...prev,
-      adminUserId: newAdminUserId,
-      users: prev.users.map(user => ({
-        ...user,
-        isAdmin: user.userId === newAdminUserId
-      }))
-    }))
+  const transferAdmin = async (newAdminUserId: string) => {
+    try {
+      const updatedSession = await apiService.updatePermissions(
+        sessionState.sessionId,
+        'transfer_admin',
+        newAdminUserId,
+        sessionState.adminUserId!
+      )
+      setSessionState(updatedSession)
+    } catch (err) {
+      console.error('Failed to transfer admin:', err)
+      setError(err instanceof Error ? err.message : 'Failed to transfer admin')
+    }
+  }
+
+  const updateUserNickname = async (nickname: string) => {
+    try {
+      const updatedSession = await apiService.updateUser(sessionState.sessionId, currentUserId, { nickname })
+      setSessionState(updatedSession)
+    } catch (err) {
+      console.error('Failed to update nickname:', err)
+      setError(err instanceof Error ? err.message : 'Failed to update nickname')
+    }
   }
 
   const currentUser = sessionState.users.find(user => user.userId === currentUserId)
@@ -212,11 +185,14 @@ export const SessionProvider: React.FC<{ children: ReactNode }> = ({ children })
       currentUserId,
       isAdmin,
       canEdit,
+      isLoading,
+      error,
       addUser,
       removeUser,
       grantEditPermission,
       revokeEditPermission,
-      transferAdmin
+      transferAdmin,
+      updateUserNickname
     }}>
       {children}
     </SessionContext.Provider>
